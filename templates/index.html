@@ -481,9 +481,37 @@
         }
     </style>
 </head>
-<body>
+<body>    <!-- Login Overlay -->
+    <div id="loginOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 9999; display: flex; justify-content: center; align-items: center;">
+        <div style="background: white; border-radius: 24px; padding: 40px; width: 400px; max-width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <span style="font-size: 48px; font-weight: 800; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; background-clip: text; color: transparent;">C</span>
+            </div>
+            <h2 style="text-align: center; margin-bottom: 8px;">Curve AI</h2>
+            <p style="text-align: center; color: #666; margin-bottom: 30px;" id="authSubtitle">Sign in to continue</p>
+            
+            <div id="loginPanel">
+                <input type="text" id="loginUser" placeholder="Username" style="width: 100%; padding: 12px; margin: 10px 0; border: 2px solid #e0e0e0; border-radius: 12px;">
+                <input type="password" id="loginPass" placeholder="Password" style="width: 100%; padding: 12px; margin: 10px 0; border: 2px solid #e0e0e0; border-radius: 12px;">
+                <button onclick="doLogin()" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 10px;">Sign In</button>
+                <p style="text-align: center; margin-top: 20px;"><a href="#" onclick="showSignupPanel(); return false;" style="color: #667eea;">Create an account</a></p>
+            </div>
+            
+            <div id="signupPanel" style="display: none;">
+                <input type="text" id="signupUser" placeholder="Username" style="width: 100%; padding: 12px; margin: 10px 0; border: 2px solid #e0e0e0; border-radius: 12px;">
+                <input type="email" id="signupEmail" placeholder="Email" style="width: 100%; padding: 12px; margin: 10px 0; border: 2px solid #e0e0e0; border-radius: 12px;">
+                <input type="password" id="signupPass" placeholder="Password" style="width: 100%; padding: 12px; margin: 10px 0; border: 2px solid #e0e0e0; border-radius: 12px;">
+                <button onclick="doSignup()" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 10px;">Create Account</button>
+                <p style="text-align: center; margin-top: 20px;"><a href="#" onclick="showLoginPanel(); return false;" style="color: #667eea;">Back to Sign In</a></p>
+            </div>
+            
+            <div id="authMsg" style="margin-top: 15px; padding: 10px; border-radius: 10px; text-align: center; font-size: 14px; display: none;"></div>
+        </div>
+    </div>
+    
     <div class="app-container">
         <!-- Sidebar -->
+        <button class="icon-btn" onclick="logout()" style="flex: 1;">Logout</button>
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-logo">
@@ -507,6 +535,10 @@
         <!-- Main Chat Area -->
         <div class="main-chat">
             <div class="chat-header">
+                <div id="userDisplay" style="display: flex; align-items: center; gap: 10px;">
+    <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;" id="userAvatar">U</div>
+    <span id="userNameText" style="font-size: 14px;"></span>
+                </div> 
                 <div style="display: flex; align-items: center;">
                     <button class="icon-btn menu-toggle" onclick="toggleSidebar()">☰</button>
                     <div class="chat-title" id="chatTitle">Curve AI</div>
@@ -795,7 +827,158 @@
             this.style.height = Math.min(this.scrollHeight, 120) + 'px';
         });
         
-        loadConversations();
+        loadConversations();        // ============ ACCOUNT SYSTEM ============
+        let currentUser = null;
+        let users = JSON.parse(localStorage.getItem('curve_users')) || [];
+
+        function showSignupPanel() {
+            document.getElementById('loginPanel').style.display = 'none';
+            document.getElementById('signupPanel').style.display = 'block';
+            document.getElementById('authSubtitle').innerText = 'Create an account';
+            document.getElementById('authMsg').style.display = 'none';
+        }
+
+        function showLoginPanel() {
+            document.getElementById('signupPanel').style.display = 'none';
+            document.getElementById('loginPanel').style.display = 'block';
+            document.getElementById('authSubtitle').innerText = 'Sign in to continue';
+            document.getElementById('authMsg').style.display = 'none';
+        }
+
+        function showAuthMessage(msg, isError = true) {
+            const msgDiv = document.getElementById('authMsg');
+            msgDiv.textContent = msg;
+            msgDiv.style.backgroundColor = isError ? '#f8d7da' : '#d4edda';
+            msgDiv.style.color = isError ? '#721c24' : '#155724';
+            msgDiv.style.border = isError ? '1px solid #f5c6cb' : '1px solid #c3e6cb';
+            msgDiv.style.display = 'block';
+            setTimeout(() => {
+                msgDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        function doSignup() {
+            const username = document.getElementById('signupUser').value.trim();
+            const email = document.getElementById('signupEmail').value.trim();
+            const password = document.getElementById('signupPass').value;
+
+            if (!username || !email || !password) {
+                showAuthMessage('Please fill all fields');
+                return;
+            }
+            if (password.length < 4) {
+                showAuthMessage('Password must be at least 4 characters');
+                return;
+            }
+            if (users.find(u => u.username === username)) {
+                showAuthMessage('Username already exists');
+                return;
+            }
+
+            const newUser = {
+                id: Date.now(),
+                username: username,
+                email: email,
+                password: password,
+                conversations: []
+            };
+            users.push(newUser);
+            localStorage.setItem('curve_users', JSON.stringify(users));
+            showAuthMessage('Account created! Please sign in.', false);
+            showLoginPanel();
+            document.getElementById('signupUser').value = '';
+            document.getElementById('signupEmail').value = '';
+            document.getElementById('signupPass').value = '';
+        }
+
+        function doLogin() {
+            const username = document.getElementById('loginUser').value.trim();
+            const password = document.getElementById('loginPass').value;
+            const user = users.find(u => u.username === username && u.password === password);
+            
+            if (!user) {
+                showAuthMessage('Invalid username or password');
+                return;
+            }
+
+            currentUser = user;
+            localStorage.setItem('curve_current_user', JSON.stringify({ id: user.id, username: user.username }));
+            
+            // Hide login overlay
+            document.getElementById('loginOverlay').style.display = 'none';
+            
+            // Update UI
+            document.getElementById('userAvatar').innerText = user.username.charAt(0).toUpperCase();
+            document.getElementById('userNameText').innerText = user.username;
+            
+            // Load user's conversations
+            if (user.conversations) {
+                allConversations = user.conversations;
+                renderSidebar();
+                if (allConversations.length > 0) {
+                    loadConversation(allConversations[0].id);
+                } else {
+                    createNewChat();
+                }
+            } else {
+                createNewChat();
+            }
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('curve_current_user');
+            document.getElementById('loginOverlay').style.display = 'flex';
+            document.getElementById('loginUser').value = '';
+            document.getElementById('loginPass').value = '';
+            allConversations = [];
+            renderSidebar();
+            
+            // Reset messages
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = `
+                <div id="welcome">
+                    <div style="text-align: center; margin-top: 48px;">
+                        <div class="welcome-icon">C</div>
+                        <h2 style="font-size: 32px; font-weight: 700; margin: 16px 0; background: var(--gradient-1); -webkit-background-clip: text; background-clip: text; color: transparent;">Curve AI</h2>
+                        <p style="color: var(--text-secondary);">Sign in to start chatting</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Update saveUserConversations to save to user account
+        const originalSave = saveUserConversations;
+        function saveUserConversations() {
+            if (currentUser) {
+                const userIndex = users.findIndex(u => u.id === currentUser.id);
+                if (userIndex !== -1) {
+                    users[userIndex].conversations = allConversations;
+                    localStorage.setItem('curve_users', JSON.stringify(users));
+                }
+            }
+        }
+
+        // Check for existing session on page load
+        const savedSession = localStorage.getItem('curve_current_user');
+        if (savedSession) {
+            const sessionData = JSON.parse(savedSession);
+            const user = users.find(u => u.id === sessionData.id);
+            if (user) {
+                currentUser = user;
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('userAvatar').innerText = user.username.charAt(0).toUpperCase();
+                document.getElementById('userNameText').innerText = user.username;
+                if (user.conversations) {
+                    allConversations = user.conversations;
+                    renderSidebar();
+                    if (allConversations.length > 0) {
+                        loadConversation(allConversations[0].id);
+                    }
+                }
+            }
+        }
+        
     </script>
 </body>
 </html>
